@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Pipeline</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --line: #e4e7eb; --text: #1c2330; --muted: #69727f;
+    --accent: #2563eb; --green: #15803d; --amber: #b45309; --red: #b91c1c; --violet: #6d28d9;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 24px 20px; max-width: 880px; margin: 0 auto; font-size: 14px; }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  h1 { font-size: 19px; font-weight: 650; }
+  .auth { display: flex; gap: 6px; align-items: center; }
+  .auth input { padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; }
+  button { padding: 6px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); cursor: pointer; font-size: 13px; color: var(--text); }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { opacity: .92; color: #fff; }
+  button.ghost { border: none; background: none; color: var(--muted); font-size: 16px; padding: 4px 8px; }
+  button.ghost:hover { color: var(--text); }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab { padding: 7px 16px; border-radius: 8px; color: var(--muted); }
+  .tab.active { background: var(--text); border-color: var(--text); color: #fff; }
+  .tab .n { opacity: .65; margin-left: 4px; font-size: 12px; }
+  .kpis { display: flex; gap: 22px; padding: 4px 2px 14px; flex-wrap: wrap; }
+  .kpi b { font-size: 19px; font-weight: 650; }
+  .kpi span { color: var(--muted); font-size: 12px; margin-left: 5px; }
+  section.block { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: visible; }
+  .head { padding: 11px 16px; font-weight: 600; font-size: 13px; letter-spacing: .02em; color: var(--muted); text-transform: uppercase; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line); position: relative; }
+  .row.dim { opacity: .55; }
+  .who { flex: 1; min-width: 0; }
+  .who a, .who b { color: var(--text); text-decoration: none; font-weight: 600; }
+  .who a:hover { color: var(--accent); }
+  .who .role { color: var(--muted); font-weight: 400; }
+  .badge { font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .badge.stage { background: #ecfdf3; color: var(--green); border-color: #bfe6cd; }
+  .badge.reached { background: #f5f3ff; color: var(--violet); border-color: #ddd3f8; }
+  .badge.late { background: #fff7ed; color: var(--amber); border-color: #f5d9ab; }
+  .empty { padding: 13px 16px; color: var(--muted); border-top: 1px solid var(--line); }
+  details > summary { padding: 11px 16px; font-weight: 600; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; cursor: pointer; list-style: none; }
+  details > summary::before { content: "▸ "; }
+  details[open] > summary::before { content: "▾ "; }
+  .menu { position: absolute; right: 12px; top: 38px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 6px 24px rgba(20,25,35,.12); z-index: 30; min-width: 172px; padding: 4px; display: none; }
+  .menu.open { display: block; }
+  .menu button { display: block; width: 100%; text-align: left; border: none; border-radius: 6px; padding: 7px 10px; }
+  .menu button:hover { background: var(--bg); color: var(--text); }
+  .menu .danger { color: var(--red); }
+  .menu .danger:hover { color: var(--red); }
+  .menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 0; }
+  .row { cursor: pointer; }
+  .detail { display: none; padding: 12px 16px 14px; border-top: 1px dashed var(--line); background: #fbfcfd; font-size: 13px; }
+  .detail.open { display: block; }
+  .detail dl { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px; margin-bottom: 10px; }
+  .detail dt { color: var(--muted); }
+  .detail dd { word-break: break-all; }
+  .detail dd a { color: var(--accent); text-decoration: none; }
+  .detail textarea { width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 7px; padding: 8px; font: inherit; margin-bottom: 6px; }
+  .detail .jd { max-height: 280px; overflow: auto; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 10px; margin-top: 6px; font-size: 12.5px; }
+  .detail summary { padding: 6px 0 !important; text-transform: none !important; letter-spacing: 0 !important; }
+  #message { margin: 8px 0 14px; min-height: 16px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Job Pipeline</h1>
+  <div class="auth">
+    <span id="sessionLabel" style="color:var(--muted);margin-right:4px"></span>
+    <input id="emailInput" type="email" placeholder="email">
+    <input id="passwordInput" type="password" placeholder="password">
+    <button id="signInButton" class="primary">Sign in</button>
+    <button id="signOutButton" hidden>Sign out</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab active" data-view="desk">Desk<span class="n" id="deskCount"></span></button>
+  <button class="tab" data-view="tracker">Tracker<span class="n" id="trackerCount"></span></button>
+</div>
+
+<div id="message"></div>
+<main id="content"></main>
+
+<script>
+const SUPABASE_URL = "https://rztpwtpqmjkqnbojbujj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ6dHB3dHBxbWprcW5ib2pidWpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2NzQ0NDMsImV4cCI6MjA5MzI1MDQ0M30.svMEjBf9gg-vZSLzG8Uf42pd9gcPG1DqRnWgw_lYcUA";
+const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const STAGES = ["ready", "applied", "screen", "interview", "onsite", "offer"];
+const LABEL = { ready: "Ready", applied: "Applied", screen: "Screen", interview: "Interview", onsite: "Onsite", offer: "Offer" };
+// legacy status kept in sync so the old dashboard + agents still work
+const LEGACY_STAGE = { ready: "tailored", applied: "applied", screen: "interviewing", interview: "interviewing", onsite: "interviewing", offer: "offer" };
+const LEGACY_CLOSE = { rejected: "rejected", ghosted: "rejected", withdrawn: "withdrawn", position_closed: "withdrawn" };
+const DAY = 86400000;
+
+let currentUser = null, jobs = [], researched = [], view = "desk";
+const openDetails = new Set();
+
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+const msg = (t, err) => { $("#message").textContent = t || ""; $("#message").style.color = err ? "var(--red)" : "var(--muted)"; };
+const alive = (j) => !j.closed_reason;
+const days = (ts) => ts ? Math.floor((Date.now() - new Date(ts)) / DAY) : null;
+const sIdx = (j) => STAGES.indexOf(j.stage);
+const nameOf = (j) => `${j.company} — ${j.role}`;
+
+// ---------- data buckets ----------
+function deskData() {
+  return {
+    inbox: researched.filter((r) => ["new", "interesting"].includes(r.decision)),
+    toDraft: jobs.filter((j) => alive(j) && j.stage === "ready" && j.status !== "tailored"),
+    toSubmit: jobs.filter((j) => alive(j) && j.stage === "ready" && j.status === "tailored"),
+  };
+}
+function trackerData() {
+  const t = jobs.filter((j) => j.applied_at || j.stage !== "ready");
+  const waiting = t.filter((j) => alive(j) && j.stage === "applied");
+  return {
+    inProcess: t.filter((j) => alive(j) && sIdx(j) > 1),
+    waitingFresh: waiting.filter((j) => (days(j.applied_at) ?? 0) <= 30),
+    waitingSilent: waiting.filter((j) => (days(j.applied_at) ?? 0) > 30),
+    pipelineRejects: t.filter((j) => j.closed_reason === "rejected" && sIdx(j) > 1),
+    screenRejects: t.filter((j) => j.closed_reason === "rejected" && sIdx(j) <= 1),
+    otherClosed: t.filter((j) => j.closed_reason && j.closed_reason !== "rejected"),
+    applied: t.filter((j) => j.applied_at),
+  };
+}
+
+// ---------- rendering ----------
+function who(j) {
+  const name = j.url ? `<a href="${esc(j.url)}" target="_blank">${esc(j.company)}</a>` : `<b>${esc(j.company)}</b>`;
+  return `<div class="who">${name} <span class="role">· ${esc(j.role)}</span></div>`;
+}
+const menuBtn = (id) => `<button class="ghost" onclick="toggleMenu(event,'${id}')">⋯</button>`;
+const fld = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
+const fileLink = (p) => p ? `<a href="${esc(p)}" target="_blank">${esc(p)}</a>` : "";
+const dateStr = (ts) => ts ? new Date(ts).toLocaleDateString() : "";
+const jdFold = (jd) => jd ? `<details><summary>Job description</summary><div class="jd">${esc(jd)}</div></details>` : "";
+
+function jobDetail(j) {
+  return `<div class="detail ${openDetails.has(j.id) ? "open" : ""}" id="detail-${j.id}">
+    <dl>
+      ${fld("Link", j.url ? `<a href="${esc(j.url)}" target="_blank">${esc(j.url)}</a>` : "")}
+      ${fld("Fit", j.fit_score ? `${j.fit_score}${j.reason ? " — " + esc(j.reason) : ""}` : esc(j.reason || ""))}
+      ${fld("Location", esc(j.location || ""))}
+      ${fld("Base", esc(j.base_resume || ""))}
+      ${fld("Draft", fileLink(j.draft_resume_path))}
+      ${fld("PDF", fileLink(j.pdf_path))}
+      ${fld("Applied", dateStr(j.applied_at))}
+      ${fld("Closed", j.closed_reason ? `${esc(j.closed_reason.replace("_", " "))} · ${dateStr(j.closed_at)}` : "")}
+      ${fld("Source", esc(j.source || ""))}
+    </dl>
+    <textarea id="notes-${j.id}" placeholder="Notes…">${esc(j.notes || "")}</textarea>
+    <button onclick="saveNotes('${j.id}')">Save notes</button>
+    ${jdFold(j.job_description)}
+  </div>`;
+}
+function researchDetail(r) {
+  return `<div class="detail ${openDetails.has(r.id) ? "open" : ""}" id="detail-${r.id}">
+    <dl>
+      ${fld("Link", r.url ? `<a href="${esc(r.url)}" target="_blank">${esc(r.url)}</a>` : "")}
+      ${fld("Fit", r.fit_score ? `${r.fit_score}${r.fit_reason ? " — " + esc(r.fit_reason) : ""}` : "")}
+      ${fld("Location", esc(r.location || ""))}
+      ${fld("Source", esc(r.source || ""))}
+      ${fld("Found", dateStr(r.discovered_at))}
+      ${fld("Notes", esc(r.research_notes || ""))}
+    </dl>
+    ${jdFold(r.job_description)}
+  </div>`;
+}
+const menu = (id, items) => `<div class="menu" id="menu-${id}">${items}</div>`;
+const mi = (label, fn, danger) => `<button class="${danger ? "danger" : ""}" onclick="${fn}">${label}</button>`;
+
+function deskView() {
+  const d = deskData();
+  const inboxRows = d.inbox.map((r) => `
+    <div class="row" onclick="toggleDetail(event,'${r.id}')">
+      ${who(r)}
+      ${r.fit_score ? `<span class="badge">fit ${r.fit_score}</span>` : ""}
+      <button class="primary" onclick="promote('${r.id}')">Queue</button>
+      <button onclick="skipResearched('${r.id}')">Skip</button>
+    </div>${researchDetail(r)}`).join("");
+  const draftRows = d.toDraft.map((j) => `
+    <div class="row" onclick="toggleDetail(event,'${j.id}')">
+      ${who(j)}
+      <button onclick="markDrafted('${j.id}')">Draft done</button>
+      ${menuBtn(j.id)}
+      ${menu(j.id, mi("Delete from queue", `removeDraft('${j.id}')`, true))}
+    </div>${jobDetail(j)}`).join("");
+  const submitRows = d.toSubmit.map((j) => `
+    <div class="row" onclick="toggleDetail(event,'${j.id}')">
+      ${who(j)}
+      <button class="primary" onclick="markApplied('${j.id}')">Applied ✓</button>
+      ${menuBtn(j.id)}
+      ${menu(j.id, [
+        mi("Back to drafting", `backToDraft('${j.id}')`),
+        mi("Delete from queue", `removeDraft('${j.id}')`, true),
+      ].join(""))}
+    </div>${jobDetail(j)}`).join("");
+  const allDone = !d.inbox.length && !d.toDraft.length && !d.toSubmit.length;
+  $("#content").innerHTML = `
+    <section class="block">
+      <div class="head">Inbox — decide</div>
+      ${inboxRows || `<div class="empty">No new research.</div>`}
+    </section>
+    <section class="block">
+      <div class="head">Draft</div>
+      ${draftRows || `<div class="empty">Nothing waiting for a draft.</div>`}
+    </section>
+    <section class="block">
+      <div class="head">Submit</div>
+      ${submitRows || `<div class="empty">Nothing ready to send.</div>`}
+    </section>
+    ${allDone ? `<p style="color:var(--muted);padding:4px 2px">Desk is clear.</p>` : ""}`;
+}
+
+function trackerRow(j, opts = {}) {
+  const d = days(j.applied_at);
+  const age = opts.age && d !== null ? `<span class="badge ${d > 30 ? "late" : ""}">${d}d</span>` : "";
+  const stageBadge = opts.stage ? `<span class="badge ${opts.stage}">${LABEL[j.stage]}</span>` : "";
+  const stageItems = STAGES.slice(2).filter((s) => s !== j.stage)
+    .map((s) => mi(`Reached ${LABEL[s].toLowerCase()}`, `setStage('${j.id}','${s}')`)).join("");
+  const closeItems = alive(j)
+    ? "<hr>" + [["rejected", "Rejected"], ["ghosted", "Ghosted"], ["withdrawn", "Withdrawn"], ["position_closed", "Position closed"]]
+        .map(([v, l]) => mi(l, `closeJob('${j.id}','${v}')`, true)).join("")
+    : "<hr>" + mi("Reopen", `reopenJob('${j.id}')`);
+  return `
+    <div class="row ${opts.dim ? "dim" : ""}" onclick="toggleDetail(event,'${j.id}')">
+      ${who(j)} ${stageBadge} ${age}
+      ${menuBtn(j.id)}
+      ${menu(j.id, (alive(j) ? stageItems : "") + closeItems)}
+    </div>${jobDetail(j)}`;
+}
+
+function trackerView() {
+  const t = trackerData();
+  const pct = (n) => t.applied.length ? Math.round((n / t.applied.length) * 100) + "%" : "–";
+  const responded = jobs.filter((j) => sIdx(j) > 1 || j.closed_reason === "rejected").length;
+  const interviews = jobs.filter((j) => sIdx(j) >= 3).length;
+  $("#content").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><b>${t.applied.length}</b><span>applied</span></div>
+      <div class="kpi"><b>${t.inProcess.length}</b><span>in process</span></div>
+      <div class="kpi"><b>${t.waitingFresh.length}</b><span>waiting</span></div>
+      <div class="kpi"><b>${pct(responded)}</b><span>response rate</span></div>
+      <div class="kpi"><b>${pct(interviews)}</b><span>interview rate</span></div>
+    </div>
+    <section class="block">
+      <div class="head">In process</div>
+      ${t.inProcess.map((j) => trackerRow(j, { stage: "stage", age: true })).join("") || `<div class="empty">No active loops. The next screen call goes here.</div>`}
+    </section>
+    <section class="block">
+      <div class="head">Waiting</div>
+      ${t.waitingFresh.map((j) => trackerRow(j, { age: true })).join("") || `<div class="empty">Nothing recent.</div>`}
+      ${t.waitingSilent.length ? `<details><summary>Silent 30+ days · ${t.waitingSilent.length}</summary>
+        ${t.waitingSilent.map((j) => trackerRow(j, { age: true, dim: true })).join("")}</details>` : ""}
+    </section>
+    <section class="block">
+      <details>
+        <summary>Closed · ${t.pipelineRejects.length + t.screenRejects.length + t.otherClosed.length}</summary>
+        ${t.pipelineRejects.length ? `<div class="head">Reached interviews</div>
+          ${t.pipelineRejects.map((j) => trackerRow(j, { stage: "reached" })).join("")}` : ""}
+        ${t.screenRejects.length ? `<div class="head">Rejected at screen</div>
+          ${t.screenRejects.map((j) => trackerRow(j)).join("")}` : ""}
+        ${t.otherClosed.length ? `<div class="head">Ghosted / withdrawn</div>
+          ${t.otherClosed.map((j) => trackerRow(j)).join("")}` : ""}
+      </details>
+    </section>`;
+}
+
+function render() {
+  const d = deskData(), t = trackerData();
+  $("#deskCount").textContent = d.inbox.length + d.toDraft.length + d.toSubmit.length || "";
+  $("#trackerCount").textContent = t.inProcess.length || "";
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+  if (!currentUser) { $("#content").innerHTML = `<div class="empty" style="border:none">Sign in to load your pipeline.</div>`; return; }
+  view === "desk" ? deskView() : trackerView();
+}
+
+// ---------- actions ----------
+window.toggleDetail = (e, id) => {
+  if (e.target.closest("button, a, select, textarea")) return;
+  openDetails.has(id) ? openDetails.delete(id) : openDetails.add(id);
+  document.querySelector(`#detail-${CSS.escape(id)}`)?.classList.toggle("open");
+};
+window.saveNotes = (id) => updateJob(id, { notes: document.querySelector(`#notes-${CSS.escape(id)}`).value });
+window.toggleMenu = (e, id) => {
+  e.stopPropagation();
+  const m = document.querySelector(`#menu-${CSS.escape(id)}`);
+  const wasOpen = m.classList.contains("open");
+  document.querySelectorAll(".menu.open").forEach((x) => x.classList.remove("open"));
+  if (!wasOpen) m.classList.add("open");
+};
+document.addEventListener("click", () => document.querySelectorAll(".menu.open").forEach((x) => x.classList.remove("open")));
+
+async function updateJob(id, patch) {
+  const { error } = await client.from("jobs").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) return msg(error.message, true);
+  loadData();
+}
+window.promote = async (id) => {
+  const r = researched.find((x) => x.id === id);
+  const { data, error } = await client.from("jobs").insert({
+    user_id: currentUser.id, company: r.company, role: r.role, url: r.url, location: r.location,
+    fit_score: r.fit_score, job_description: r.job_description, source: r.source,
+    researched_job_id: r.id, stage: "ready", status: "tailoring",
+  }).select().single();
+  if (error) return msg(error.message, true);
+  await client.from("researched_jobs").update({ decision: "promoted", promoted_job_id: data.id }).eq("id", id);
+  loadData();
+};
+window.skipResearched = async (id) => {
+  const { error } = await client.from("researched_jobs").update({ decision: "skipped" }).eq("id", id);
+  if (error) return msg(error.message, true);
+  loadData();
+};
+window.markDrafted = (id) => updateJob(id, { status: "tailored" });
+window.backToDraft = (id) => updateJob(id, { status: "tailoring" });
+window.markApplied = (id) => updateJob(id, { stage: "applied", status: "applied", applied_at: new Date().toISOString() });
+window.removeDraft = async (id) => {
+  const j = jobs.find((x) => x.id === id);
+  if (!confirm(`Delete "${nameOf(j)}" from the queue? The draft row is removed; the research entry is marked skipped.`)) return;
+  const { error } = await client.from("jobs").delete().eq("id", id);
+  if (error) return msg(error.message, true);
+  if (j.researched_job_id) await client.from("researched_jobs").update({ decision: "skipped", promoted_job_id: null }).eq("id", j.researched_job_id);
+  loadData();
+};
+window.setStage = (id, stage) => {
+  const j = jobs.find((x) => x.id === id);
+  if (!confirm(`${nameOf(j)}\nMark as reached ${LABEL[stage].toLowerCase()}?`)) return;
+  updateJob(id, { stage, status: LEGACY_STAGE[stage], closed_reason: null, closed_at: null });
+};
+window.closeJob = (id, reason) => {
+  const j = jobs.find((x) => x.id === id);
+  if (!confirm(`${nameOf(j)}\nClose as ${reason.replace("_", " ")}?`)) return;
+  updateJob(id, { closed_reason: reason, closed_at: new Date().toISOString(), status: LEGACY_CLOSE[reason] });
+};
+window.reopenJob = (id) => {
+  const j = jobs.find((x) => x.id === id);
+  if (!confirm(`Reopen "${nameOf(j)}"? It returns to its last stage (${LABEL[j.stage]}).`)) return;
+  updateJob(id, { closed_reason: null, closed_at: null, status: LEGACY_STAGE[j.stage] });
+};
+
+// ---------- data + auth ----------
+async function loadData() {
+  const [j, r] = await Promise.all([
+    client.from("jobs").select("*").order("updated_at", { ascending: false }),
+    client.from("researched_jobs").select("*").order("fit_score", { ascending: false }),
+  ]);
+  if (j.error || r.error) return msg((j.error || r.error).message, true);
+  jobs = j.data; researched = r.data;
+  msg("");
+  render();
+}
+async function refreshSession() {
+  const { data } = await client.auth.getUser();
+  currentUser = data.user || null;
+  $("#sessionLabel").textContent = currentUser ? currentUser.email : "";
+  $("#signInButton").hidden = !!currentUser;
+  $("#emailInput").hidden = !!currentUser;
+  $("#passwordInput").hidden = !!currentUser;
+  $("#signOutButton").hidden = !currentUser;
+  currentUser ? loadData() : (jobs = [], researched = [], render());
+}
+$("#signInButton").addEventListener("click", async () => {
+  const { error } = await client.auth.signInWithPassword({ email: $("#emailInput").value.trim(), password: $("#passwordInput").value });
+  if (error) return msg(error.message, true);
+  $("#passwordInput").value = "";
+  refreshSession();
+});
+$("#signOutButton").addEventListener("click", async () => { await client.auth.signOut(); refreshSession(); });
+document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { view = b.dataset.view; render(); }));
+$("#passwordInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#signInButton").click(); });
+refreshSession();
+</script>
+</body>
+</html>
