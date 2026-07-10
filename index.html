@@ -62,6 +62,11 @@
   .detail textarea { width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 7px; padding: 8px; font: inherit; margin-bottom: 6px; }
   .detail .jd { max-height: 280px; overflow: auto; white-space: pre-wrap; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 10px; margin-top: 6px; font-size: 12.5px; }
   .detail summary { padding: 6px 0 !important; text-transform: none !important; letter-spacing: 0 !important; }
+  .crow { padding: 9px 16px 3px; font-weight: 650; font-size: 13px; border-top: 1px solid var(--line); }
+  .crow .n { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 12px; }
+  .ggroup .row { padding-left: 32px; border-top: 1px dashed var(--line); }
+  #groupToggle { margin-left: auto; color: var(--muted); }
+  #groupToggle.on { border-color: var(--accent); color: var(--accent); }
   #message { margin: 8px 0 14px; min-height: 16px; font-size: 13px; color: var(--muted); }
 </style>
 </head>
@@ -80,6 +85,7 @@
 <div class="tabs">
   <button class="tab active" data-view="desk">Desk<span class="n" id="deskCount"></span></button>
   <button class="tab" data-view="tracker">Tracker<span class="n" id="trackerCount"></span></button>
+  <button id="groupToggle" type="button" title="Group every list by company">By company: off</button>
 </div>
 
 <div id="message"></div>
@@ -98,6 +104,7 @@ const LEGACY_CLOSE = { rejected: "rejected", ghosted: "rejected", withdrawn: "wi
 const DAY = 86400000;
 
 let currentUser = null, jobs = [], researched = [], view = "desk";
+let groupBy = localStorage.getItem("jt.group") === "1";
 const openDetails = new Set();
 
 const $ = (s) => document.querySelector(s);
@@ -132,8 +139,21 @@ function trackerData() {
 
 // ---------- rendering ----------
 function who(j) {
+  if (groupBy) {
+    const role = j.url ? `<a href="${esc(j.url)}" target="_blank">${esc(j.role)}</a>` : `<b>${esc(j.role)}</b>`;
+    return `<div class="who">${role}</div>`;
+  }
   const name = j.url ? `<a href="${esc(j.url)}" target="_blank">${esc(j.company)}</a>` : `<b>${esc(j.company)}</b>`;
   return `<div class="who">${name} <span class="role">· ${esc(j.role)}</span></div>`;
+}
+function grouped(list, rowFn) {
+  if (!list.length) return "";
+  if (!groupBy) return list.map(rowFn).join("");
+  const by = new Map();
+  for (const x of list) { const k = x.company || "?"; if (!by.has(k)) by.set(k, []); by.get(k).push(x); }
+  return [...by.entries()].map(([c, xs]) =>
+    `<div class="crow">${esc(c)}<span class="n">${xs.length}</span></div><div class="ggroup">${xs.map(rowFn).join("")}</div>`
+  ).join("");
 }
 const menuBtn = (id) => `<button class="ghost" onclick="toggleMenu(event,'${id}')">⋯</button>`;
 const fld = (k, v) => v ? `<dt>${k}</dt><dd>${v}</dd>` : "";
@@ -177,21 +197,21 @@ const mi = (label, fn, danger) => `<button class="${danger ? "danger" : ""}" onc
 
 function deskView() {
   const d = deskData();
-  const inboxRows = d.inbox.map((r) => `
+  const inboxRows = grouped(d.inbox, (r) => `
     <div class="row" onclick="toggleDetail(event,'${r.id}')">
       ${who(r)}
       ${r.fit_score ? `<span class="badge">fit ${r.fit_score}</span>` : ""}
       <button class="primary" onclick="promote('${r.id}')">Queue</button>
       <button onclick="skipResearched('${r.id}')">Skip</button>
-    </div>${researchDetail(r)}`).join("");
-  const draftRows = d.toDraft.map((j) => `
+    </div>${researchDetail(r)}`);
+  const draftRows = grouped(d.toDraft, (j) => `
     <div class="row" onclick="toggleDetail(event,'${j.id}')">
       ${who(j)}
       <button onclick="markDrafted('${j.id}')">Draft done</button>
       ${menuBtn(j.id)}
       ${menu(j.id, mi("Delete from queue", `removeDraft('${j.id}')`, true))}
-    </div>${jobDetail(j)}`).join("");
-  const submitRows = d.toSubmit.map((j) => `
+    </div>${jobDetail(j)}`);
+  const submitRows = grouped(d.toSubmit, (j) => `
     <div class="row" onclick="toggleDetail(event,'${j.id}')">
       ${who(j)}
       <button class="primary" onclick="markApplied('${j.id}')">Applied ✓</button>
@@ -200,7 +220,7 @@ function deskView() {
         mi("Back to drafting", `backToDraft('${j.id}')`),
         mi("Delete from queue", `removeDraft('${j.id}')`, true),
       ].join(""))}
-    </div>${jobDetail(j)}`).join("");
+    </div>${jobDetail(j)}`);
   const allDone = !d.inbox.length && !d.toDraft.length && !d.toSubmit.length;
   $("#content").innerHTML = `
     <section class="block">
@@ -251,23 +271,23 @@ function trackerView() {
     </div>
     <section class="block">
       <div class="head">In process</div>
-      ${t.inProcess.map((j) => trackerRow(j, { stage: "stage", age: true })).join("") || `<div class="empty">No active loops. The next screen call goes here.</div>`}
+      ${grouped(t.inProcess, (j) => trackerRow(j, { stage: "stage", age: true })) || `<div class="empty">No active loops. The next screen call goes here.</div>`}
     </section>
     <section class="block">
       <div class="head">Waiting</div>
-      ${t.waitingFresh.map((j) => trackerRow(j, { age: true })).join("") || `<div class="empty">Nothing recent.</div>`}
+      ${grouped(t.waitingFresh, (j) => trackerRow(j, { age: true })) || `<div class="empty">Nothing recent.</div>`}
       ${t.waitingSilent.length ? `<details><summary>Silent 30+ days · ${t.waitingSilent.length}</summary>
-        ${t.waitingSilent.map((j) => trackerRow(j, { age: true, dim: true })).join("")}</details>` : ""}
+        ${grouped(t.waitingSilent, (j) => trackerRow(j, { age: true, dim: true }))}</details>` : ""}
     </section>
     <section class="block">
       <details>
         <summary>Closed · ${t.pipelineRejects.length + t.screenRejects.length + t.otherClosed.length}</summary>
         ${t.pipelineRejects.length ? `<div class="head">Reached interviews</div>
-          ${t.pipelineRejects.map((j) => trackerRow(j, { stage: "reached" })).join("")}` : ""}
+          ${grouped(t.pipelineRejects, (j) => trackerRow(j, { stage: "reached" }))}` : ""}
         ${t.screenRejects.length ? `<div class="head">Rejected at screen</div>
-          ${t.screenRejects.map((j) => trackerRow(j)).join("")}` : ""}
+          ${grouped(t.screenRejects, (j) => trackerRow(j))}` : ""}
         ${t.otherClosed.length ? `<div class="head">Ghosted / withdrawn</div>
-          ${t.otherClosed.map((j) => trackerRow(j)).join("")}` : ""}
+          ${grouped(t.otherClosed, (j) => trackerRow(j))}` : ""}
       </details>
     </section>`;
 }
@@ -374,6 +394,10 @@ $("#signInButton").addEventListener("click", async () => {
 });
 $("#signOutButton").addEventListener("click", async () => { await client.auth.signOut(); refreshSession(); });
 document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => { view = b.dataset.view; render(); }));
+const gBtn = $("#groupToggle");
+function syncGroupBtn() { gBtn.textContent = "By company: " + (groupBy ? "on" : "off"); gBtn.classList.toggle("on", groupBy); }
+gBtn.addEventListener("click", () => { groupBy = !groupBy; localStorage.setItem("jt.group", groupBy ? "1" : "0"); syncGroupBtn(); render(); });
+syncGroupBtn();
 $("#passwordInput").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#signInButton").click(); });
 refreshSession();
 </script>
